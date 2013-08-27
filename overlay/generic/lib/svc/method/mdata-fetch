@@ -134,10 +134,15 @@ while IFS="|" read -r iface ip netmask primary gateway; do
     continue;
   fi
 
-  if [[ ${ip} != "dhcp" && -n ${ip} && -n ${netmask} ]]; then
+  if [[ ${ip} != "dhcp" && ${ip} != "dhcp6" && -n ${ip} && -n ${netmask} ]]; then
     echo "${ip} netmask ${netmask} up" > /etc/hostname.${iface}
   else
-    rm -f /etc/hostname.${iface}
+    if [[ ${ip} != "dhcp" && ${ip} != "dhcp6" && -n ${ip} ]]; then
+      echo "${ip} up" > /etc/hostname.${iface}
+    else
+      echo "deleting interface configs is a dick move"
+      rm -f /etc/hostname.${iface}
+    fi
   fi
 
   # remove any existing dhcp.${iface} file, we'll create one if it belongs later
@@ -147,7 +152,7 @@ while IFS="|" read -r iface ip netmask primary gateway; do
     if [[ -n ${gateway} ]]; then
       echo "${gateway}" > /etc/defaultrouter
     fi
-    if [[ ${ip} == "dhcp" ]]; then
+    if [[ ${ip} == "dhcp" || ${ip} == "dhcp6" ]]; then
       touch /etc/dhcp.${iface}
     fi
   fi
