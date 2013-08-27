@@ -132,6 +132,10 @@ if [[ $? == 0 && -n ${tmpfs} && -f /etc/vfstab ]]; then
   fi
 fi
 
+# Let root log in with no password on console
+sed -i .bak 's/^PASSREQ=YES/PASSREQ=NO/' /etc/default/login
+sed -i .bak 's/^root:[^:]*:/root::/' /etc/shadow
+
 # We use the special sdc:nics value here though this is not an interface for
 # use elsewhere.  If this is changed please also update agent.js in the metadata
 # agent.
