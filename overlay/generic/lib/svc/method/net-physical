@@ -343,14 +343,30 @@ else
     # interface, if it exists
     while IFS=: read -r iface addrtype; do
         if [[ -f /etc/hostname.${iface} ]]; then
-            /sbin/ifconfig ${iface} plumb
+            ipfamily="inet"
+            if [[ -z $(/usr/bin/egrep "^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" /etc/hostname.${iface}) ]]; then
+                ipfamily="inet6"
+                /sbin/ifconfig ${iface} inet6 plumb
+                if [[ -z $(/usr/bin/egrep "^fe80:" /etc/hostname.${iface}) ]]; then
+                    ip6needsalias="yes"
+                    /sbin/ifconfig ${iface}:1 inet6 plumb
+                fi
+            else
+                /sbin/ifconfig ${iface} plumb
+            fi
+
             # vrrp interfaces can't be brought up with ifconfig: vrrpadm
             # handles that instead
             if [[ "${addrtype}" =~ "^vrrp" ]]; then
-                /sbin/ifconfig ${iface} inet `cat /etc/hostname.${iface} \
+                /sbin/ifconfig ${iface} ${ipfamily} `cat /etc/hostname.${iface} \
                     | sed -e 's/ up//'`
             else
-                /sbin/ifconfig ${iface} inet `cat /etc/hostname.${iface}` up
+                if [[ "$ip6needsalias" = "yes" ]]; then
+                    /sbin/ifconfig ${iface}:1 inet6 `cat /etc/hostname.${iface}` up
+                    /sbin/ifconfig ${iface} inet6 up
+                else
+                    /sbin/ifconfig ${iface} ${ipfamily} `cat /etc/hostname.${iface}` up
+                fi
             fi
         else
             if [[ -z "${first_iface}" ]]; then
@@ -377,7 +393,11 @@ else
         fi
         /sbin/ifconfig ${iface} plumb
         if [[ ! -f /etc/hostname.${iface} ]]; then
-            /sbin/ifconfig ${iface} dhcp start wait 0
+            if [[ -f /etc/dhcp.${iface} ]]; then
+                /sbin/ifconfig ${iface} `cat /etc/dhcp.${iface}` dhcp start wait 0
+            else
+                /sbin/ifconfig ${iface} dhcp start wait 0
+            fi
         fi
     done
 fi

@@ -1253,9 +1253,9 @@ tab-complete UUIDs rather than having to type them out for every command.
 
     nics.*.gateway:
 
-        The IPv4 router on this network (not required if using DHCP)
+        The IPv4 or IPv6 router on this network (not required if using DHCP)
 
-        type: string (IPv4 address)
+        type: string (IPv4 or IPv6 address)
         vmtype: OS,KVM
         listable: yes (see above)
         create: yes
@@ -1276,8 +1276,11 @@ tab-complete UUIDs rather than having to type them out for every command.
 
         IPv4 unicast address for this NIC, or 'dhcp' to obtain address via
         DHCP.
+        The IP can also be specified in CIDR notation aaa.bbb.ccc.ddd/prefix.
+        Only for OS zones: IPv6 address for this NIC, or 'dhcp6' to obtain
+        address via DHCPv6.
 
-        type: string (IPv4 address or 'dhcp')
+        type: string (IPv4 address or 'dhcp'; IPv6 address or 'dhcp6')
         vmtype: OS,KVM
         listable: yes (see above)
         create: yes
@@ -1308,6 +1311,7 @@ tab-complete UUIDs rather than having to type them out for every command.
     nics.*.netmask
 
         The netmask for this NIC's network (not required if using DHCP)
+        This is ignored if IP has CIDR notation.
 
         type: string (IPv4 netmask, eg. 255.255.255.0)
         vmtype: OS,KVM
