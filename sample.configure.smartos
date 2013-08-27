@@ -1,6 +1,6 @@
 mkdir -p projects/local
 (cd projects/local && [[ -d kvm ]] \
-    || git clone git://github.com/joyent/illumos-kvm kvm)
+    || git clone git://github.com/arekinath/illumos-kvm kvm)
 (cd projects/local && [[ -d kvm-cmd ]] \
     || git clone git://github.com/joyent/illumos-kvm-cmd kvm-cmd)
 (cd projects/local && [[ -d mdata-client ]] \
