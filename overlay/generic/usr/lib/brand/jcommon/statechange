@@ -333,6 +333,9 @@ setup_net()
 			fi
 		fi
 
+		# strip CIDR otation from zone_ip
+		zone_ip=${zone_ip%/*}
+
 		if [[ -n "${zone_ip}" ]] && [[ $allow_ip_spoof != "true" ]] && \
 			    [[ "${zone_ip}" != "dhcp" ]]; then
 			allowed_ip_list="${zone_ip}"
