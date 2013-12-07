@@ -344,6 +344,7 @@ else
     while IFS=: read -r iface addrtype; do
         if [[ -f /etc/hostname.${iface} ]]; then
             ipfamily="inet"
+            ip6needsalias="no"
             if [[ -z $(/usr/bin/egrep "^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" /etc/hostname.${iface}) ]]; then
                 ipfamily="inet6"
                 /sbin/ifconfig ${iface} inet6 plumb
