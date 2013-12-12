@@ -1,0 +1,33 @@
+patches for illumos-gate
+* make useradd -D work properly by moving defadduser/role
+  into /etc
+* increase EVCH_MAX_SUBSCRIPTIONS to avoid project-fifo 
+  breaking with >32 zones on a system
+diff --git a/usr/src/head/userdefs.h b/usr/src/head/userdefs.h
+index 7c6407c..aba8be4 100644
+--- a/usr/src/head/userdefs.h
++++ b/usr/src/head/userdefs.h
+@@ -86,8 +86,8 @@ extern "C" {
+ #define        LOCK_AFTER_RETRIESSTR   "deflock_after_retries="
+ 
+ /* Defaults file */
+-#define        DEFFILE         "/usr/sadm/defadduser"
+-#define        DEFROLEFILE     "/usr/sadm/defaddrole"
++#define        DEFFILE         "/etc/sadm/defadduser"
++#define        DEFROLEFILE     "/etc/sadm/defaddrole"
+ #define        GROUP           "/etc/group"
+ 
+ /* various limits */
+diff --git a/usr/src/uts/common/sys/sysevent_impl.h b/usr/src/uts/common/sys/sysevent_impl.h
+index 1174527..75a527c 100644
+--- a/usr/src/uts/common/sys/sysevent_impl.h
++++ b/usr/src/uts/common/sys/sysevent_impl.h
+@@ -253,7 +253,7 @@ extern uint64_t log_sysevent_new_id(void);
+ /* Limits */
+ #define        EVCH_MAX_CHANNELS               1024
+ #define        EVCH_MAX_BINDS_PER_CHANNEL      512
+-#define        EVCH_MAX_SUBSCRIPTIONS          32
++#define        EVCH_MAX_SUBSCRIPTIONS          512
+ #define        EVCH_SUBPOOLFACT                8
+ #define        EVCH_DEFAULT_EVENTS             2000
+ #define        EVCH_MAX_TRY_DELIVERY           3
