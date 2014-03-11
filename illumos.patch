@@ -13,8 +13,8 @@ index 7c6407c..aba8be4 100644
  /* Defaults file */
 -#define        DEFFILE         "/usr/sadm/defadduser"
 -#define        DEFROLEFILE     "/usr/sadm/defaddrole"
-+#define        DEFFILE         "/etc/sadm/defadduser"
-+#define        DEFROLEFILE     "/etc/sadm/defaddrole"
++#define	DEFFILE		"/etc/sadm/defadduser"
++#define	DEFROLEFILE	"/etc/sadm/defaddrole"
  #define        GROUP           "/etc/group"
  
  /* various limits */
@@ -27,7 +27,7 @@ index 1174527..75a527c 100644
  #define        EVCH_MAX_CHANNELS               1024
  #define        EVCH_MAX_BINDS_PER_CHANNEL      512
 -#define        EVCH_MAX_SUBSCRIPTIONS          32
-+#define        EVCH_MAX_SUBSCRIPTIONS          512
++#define	EVCH_MAX_SUBSCRIPTIONS		512
  #define        EVCH_SUBPOOLFACT                8
  #define        EVCH_DEFAULT_EVENTS             2000
  #define        EVCH_MAX_TRY_DELIVERY           3
