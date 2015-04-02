@@ -6,7 +6,7 @@ mkdir -p projects/local
 (cd projects/local && [[ -d mdata-client ]] \
     || git clone git://github.com/joyent/mdata-client mdata-client)
 (cd overlay && [[ -d smartos ]] \
-    || git clone git://github.com/joyent/smartos-overlay smartos)
+    || git clone git://github.com/drscream/smartos-overlay smartos)
 
 PUBLISHER="joyent"
 RELEASE_VER="joyent_147"
