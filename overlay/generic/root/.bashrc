@@ -64,3 +64,12 @@ svclog() {
 svclogf() {
   /usr/bin/tail -f `svcs -L $1`
 }
+
+vmdiff() {
+  if [ ${#} -ne 1 ]; then
+    echo "vmdiff <uuid>"
+    return
+  fi
+  VM_ZFS=zones/${1}
+  zfs diff $(zfs get -Ho value origin ${VM_ZFS}) ${VM_ZFS}
+}
