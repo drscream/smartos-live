@@ -96,6 +96,7 @@ d smartdc/man 0555 root bin
 d smartdc/man/man1 0555 root bin
 f smartdc/man/man1/sdc-lastcomm.1 0444 root bin
 f usr/bin/json 0555 root bin
+f usr/bin/platform-upgrade 0555 root bin
 f usr/include/usb.h 0444 root bin
 d usr/lib/brand 0755 root bin
 d usr/lib/brand/jcommon 0755 root bin
