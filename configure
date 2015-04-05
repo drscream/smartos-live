@@ -150,7 +150,6 @@ function fetch_illumos
 	[[ -z "$GET_ILLUMOS" ]] && fatal "configure must define GET_ILLUMOS"
 	cd projects >/dev/null || fatal "failed to cd into projects directory"
 	/bin/bash -c "$GET_ILLUMOS " || fatal "fetching illumos failed"
-	/opt/local/bin/patch -d ./illumos -lp1 <../illumos.patch >/dev/null || fatal "patching illumos failed"
 	cd - >/dev/null || fatal "failed to cd out of projects directory"
 	[[ -f "$tfile" ]] || fatal "fetched illumos appears to be missing files"
 }
