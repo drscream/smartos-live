@@ -101,6 +101,7 @@ d root 0755 root root
 f root/.bash_profile 0644 root root
 f root/.bashrc 0644 root root
 f root/.profile 0644 root root
+f root/.vimrc 0644 root root
 d smartdc 0555 root bin
 d smartdc/bin 0555 root bin
 f smartdc/bin/sdc-factoryreset 0555 root bin
