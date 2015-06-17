@@ -260,27 +260,37 @@ void
 buildCmdEnv()
 {
     int idx;
-    nvlist_t *nvl;
+    nvlist_t *nvl_cont;
+    nvlist_t *nvl_link;
+    uint32_t contenv_len;
+    uint32_t linkenv_len;
     uint32_t env_len;
 
-    getMdataArray("docker:env", &nvl, &env_len);
+    getMdataArray("docker:env", &nvl_cont, &contenv_len);
+    getMdataArray("docker:linkEnv", &nvl_link, &linkenv_len);
+    env_len = contenv_len + linkenv_len;
 
     /*
      * NOTE: We allocate two extra char * in case we're going to add 'HOME'
-     * and/or 'TERM'
+     * and 'HOSTNAME' and 'PATH' and 'TERM' and a slot for NULL.
      */
-    env = malloc((sizeof (char *)) * (env_len + 3));
+    env = malloc((sizeof (char *)) * (env_len + 5));
     if (env == NULL) {
         fatal(ERR_UNEXPECTED, "malloc() for env[%d] failed: %s\n", env_len + 3,
             strerror(errno));
     }
 
+    /*
+     * NOTE: nvl_link is added before nvl_cont, so that container env will
+     * win (in execve) if the same variable appears in both environments.
+     */
     idx = 0;
-    addValues(env, &idx, ARRAY_ENV, nvl);
+    addValues(env, &idx, ARRAY_LINK_ENV, nvl_link);
+    addValues(env, &idx, ARRAY_ENV, nvl_cont);
     env[idx] = NULL;
 
     /*
-     * NOTE: we don't nvlist_free(nvl); here because we need this memory
+     * NOTE: we don't nvlist_free(nvl_*); here because we need this memory
      * for execve() and when we execve() things get cleaned up anyway.
      */
 }
@@ -312,6 +322,7 @@ addValues(char **array, int *idx, array_type_t type, nvlist_t *nvl)
             field = "docker:entrypoint";
             printf_fmt = "ARGV[%d]:ENTRYPOINT %s\n";
             break;
+        case ARRAY_LINK_ENV:
         case ARRAY_ENV:
             field = "docker:env";
             printf_fmt = "ENV[%d] %s\n";
@@ -327,21 +338,16 @@ addValues(char **array, int *idx, array_type_t type, nvlist_t *nvl)
         if (nvpair_type(pair) == DATA_TYPE_STRING) {
             ret = nvpair_value_string(pair, &value);
             if (ret == 0) {
-                if ((type == ARRAY_ENTRYPOINT) && (*idx == 0) &&
-                    (value[0] != '/')) {
-
+                if (type == ARRAY_ENTRYPOINT) {
                     /*
-                     * XXX if first component is not an absolute path, we want
-                     * to make sure we're exec'ing something that is. In docker
-                     * they do an exec.LookPath, but for now we'll just run
-                     * under /bin/sh -c
+                     * In case the first component of entrypoint is not an
+                     * absolute path, we run through execName to force it to be
+                     * one (or fail). In Docker, they use exec.LookPath.
                      */
-                    array[(*idx)++] = "/bin/sh";
-                    dlog(printf_fmt, *idx, array[(*idx)-1]);
-                    array[(*idx)++] = "-c";
-                    dlog(printf_fmt, *idx, array[(*idx)-1]);
+                    array[*idx] = execName(value);
+                } else {
+                    array[*idx] = value;
                 }
-                array[*idx] = value;
                 if ((type == ARRAY_ENV) && (strncmp(value, "HOME=", 5) == 0)) {
                     found_home = 1;
                 }
@@ -507,23 +513,19 @@ execName(char *cmd)
 }
 
 void
-getMdataArray(char *key, nvlist_t **nvl, uint32_t *len)
+getMdataArray(const char *key, nvlist_t **nvl, uint32_t *len)
 {
-    char *json;
-    int ret;
+    const char *json;
 
-    json = (char *) mdataGet(key);
-    if (json == NULL) {
+    if ((json = mdataGet(key)) == NULL) {
         json = "[]";
     }
 
-    ret = nvlist_parse_json((char *)json, strlen(json), nvl,
-        NVJSON_FORCE_INTEGER);
-    if (ret != 0) {
+    if (nvlist_parse_json(json, strlen(json), nvl, NVJSON_FORCE_INTEGER,
+      NULL) != 0) {
         fatal(ERR_PARSE_JSON, "failed to parse JSON(%s): %s\n", key, json);
     }
-    ret = nvlist_lookup_uint32(*nvl, "length", len);
-    if (ret != 0) {
+    if (nvlist_lookup_uint32(*nvl, "length", len) != 0) {
         fatal(ERR_UNEXPECTED, "nvl missing 'length' for %s\n", key);
     }
 }

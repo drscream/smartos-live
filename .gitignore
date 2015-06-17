@@ -1,6 +1,9 @@
 /configure.*
 /configure-*
 /output
+/output-iso
+/output-usb
+/output-vmware
 /projects
 /proto
 /proto.boot
@@ -80,6 +83,7 @@ boot.manifest.gen
 manifest.gen
 boot.manifest.d/
 manifest.d/
+mancheck.conf.d/
 overlay/order
 overlay/sdc
 overlay/smartos

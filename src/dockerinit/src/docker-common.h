@@ -37,7 +37,8 @@
 typedef enum {
     ARRAY_CMD,
     ARRAY_ENTRYPOINT,
-    ARRAY_ENV
+    ARRAY_ENV,
+    ARRAY_LINK_ENV
 } array_type_t;
 
 typedef enum {
@@ -75,7 +76,6 @@ typedef enum {
     ERR_PLUMB_IF,
     ERR_RAISE_IF,
     ERR_UP_IP6,
-    ERR_CHROOT_FAILED,
     ERR_CHILD_NET,
     ERR_DOOR_INFO,
     ERR_IPMGMTD_EXIT,
@@ -101,7 +101,7 @@ void buildCmdEnv();
 void dlog(const char *fmt, ...);
 char * execName(char *cmd);
 void fatal(dockerinit_err_t code, char *fmt, ...);
-void getMdataArray(char *key, nvlist_t **nvl, uint32_t *len);
+void getMdataArray(const char *key, nvlist_t **nvl, uint32_t *len);
 char *getTimestamp();
 void getUserGroupData();
 void mdataDelete(const char *keyname);
