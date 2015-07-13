@@ -455,6 +455,20 @@ function InvalidUUIDError(cause, uuid) {
 }
 util.inherits(InvalidUUIDError, ImgadmError);
 
+function InvalidDockerInfoError(cause, message) {
+    if (message === undefined) {
+        message = cause;
+        cause = undefined;
+    }
+    ImgadmError.call(this, {
+        cause: cause,
+        message: message,
+        code: 'InvalidDockerInfo',
+        exitStatus: 1
+    });
+}
+util.inherits(InvalidDockerInfoError, ImgadmError);
+
 function InvalidArgumentError(cause, message) {
     if (message === undefined) {
         message = cause;
@@ -738,6 +752,7 @@ module.exports = {
     ImgadmError: ImgadmError,
     InternalError: InternalError,
     InvalidUUIDError: InvalidUUIDError,
+    InvalidDockerInfoError: InvalidDockerInfoError,
     InvalidArgumentError: InvalidArgumentError,
     NoSourcesError: NoSourcesError,
     SourcePingError: SourcePingError,
