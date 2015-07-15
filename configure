@@ -50,7 +50,7 @@ function check_loc
 	[[ "$(readlink -f "$PWD")" != "$(readlink -f "$conf_arg0_dir")" ]] && \
 	    fatal "configure must be run from inside $conf_arg0_dir"
 	[[ "$(uname -s)" != "SunOS" ]] && fatal "build only works on SunOS"
-	if [[ "$(uname -v)" =~ "joyent_" ]]; then
+	if [[ "$(uname -v)" =~ "joyent_" || "$(uname -v)" =~ "skylime_" ]]; then
 		[[ "$(zonename)" == "global" ]] && fatal \
 		    "building in a GZ on SmartOS is not supported"
 	else	
