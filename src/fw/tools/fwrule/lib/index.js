@@ -1,5 +1,27 @@
 /*
- * Copyright (c) 2013, Joyent, Inc. All rights reserved.
+ * CDDL HEADER START
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at http://smartos.org/CDDL
+ *
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file.
+ *
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ *
+ * Copyright (c) 2015, Joyent, Inc. All rights reserved.
+ *
  *
  * firewall rule parser: entry point
  */
@@ -18,6 +40,7 @@ var VError = require('verror').VError;
 var uuidRE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 var portRE = /^[0-9]{1,5}$/;
 
+var CURR_VERSION = 2;
 
 
 // --- Internal helper functions
@@ -76,6 +99,32 @@ parser.yy.validatePortNumber = function validatePortNumber(num) {
     }
 };
 
+parser.yy.validateRangeOrder = function validateRangeOrder(start, end) {
+    if (Number(end) < Number(start)) {
+        throw new validators.InvalidParamError('rule',
+            'The end of the range (%s) cannot be less than the start (%s)',
+            end, start);
+    }
+};
+
+parser.yy.createMaybePortRange = function createMaybePortRange(num) {
+    var range = num.split('-');
+
+    switch (range.length) {
+    case 1:
+            parser.yy.validatePortNumber(range[0]);
+            return Number(range[0]);
+    case 2:
+            parser.yy.validatePortNumber(range[0]);
+            parser.yy.validatePortNumber(range[1]);
+            parser.yy.validateRangeOrder(range[0], range[1]);
+            return { 'start': Number(range[0]), 'end': Number(range[1]) };
+    default:
+            throw new validators.InvalidParamError('rule',
+                '"%s" is not a valid port number or range', num);
+    }
+};
+
 
 parser.yy.validateICMPcode = function validateICMPcode(num) {
     if (isNaN(num) || Number(num) < 0 || Number(num) > 255) {
@@ -97,6 +146,13 @@ parser.yy.validateUUID = function validateUUID(text) {
     if (!uuidRE.test(text)) {
         throw new validators.InvalidParamError('rule',
             'UUID "%s" is invalid', text);
+    }
+};
+
+parser.yy.validateOKVersion = function validateOKVersion(ver, feature) {
+    if (ver > parser.yy.maxVersion) {
+        throw new validators.InvalidParamError('rule',
+            'The rule uses a feature (%s) newer than this API allows', feature);
     }
 };
 
@@ -140,8 +196,15 @@ parser.yy.parseError = function parseError(str, details) {
 
 
 
-function parse() {
-    return parser.parse.apply(parser, arguments);
+function parse(input, opts) {
+    if (!opts) {
+        opts = {};
+    }
+
+    // If a version hasn't been specified, use most recent
+    parser.yy.maxVersion = opts.maxVersion || CURR_VERSION;
+
+    return parser.parse(input);
 }
 
 

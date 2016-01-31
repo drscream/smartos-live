@@ -1,5 +1,13 @@
 # imgadm changelog
 
+## 3.6.1
+
+- OS-5049 'imgadm import' of docker layers doesn't handle multiple *hardlinked* whiteout files
+
+## 3.6.0
+
+- OS-5088 expose image type in 'imgadm list' to help distinguish LX linux from KVM linux
+
 ## 3.5.2
 
 - OS-4493 Fix an 'imgadm import' crash on invalid Docker image ancestry info.

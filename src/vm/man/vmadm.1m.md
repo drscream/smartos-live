@@ -539,7 +539,7 @@ tab-complete UUIDs rather than having to type them out for every command.
         the startvm script (for KVM), the properties from all the zone's
         datasets, metadata, tags and /var/adm/messages. In the future the list
         may change. The files specified will be written to the directory
-        /zones/archives/<uuid>.
+        /zones/archive/<uuid>.
 
         type: boolean
         vmtype: OS,KVM
@@ -600,11 +600,11 @@ tab-complete UUIDs rather than having to type them out for every command.
 
     brand:
 
-        This will be one of 'joyent', 'joyent-minimal' or 'sngl' for OS
+        This will be one of 'joyent', 'joyent-minimal' or 'lx' for OS
         virtualization and 'kvm' for full hardware virtualization. This is a
         required value for VM creation.
 
-        type: string (joyent|joyent-minimal|kvm|sngl)
+        type: string (joyent|joyent-minimal|lx|kvm)
         vmtype: OS,KVM
         listable: yes
         create: yes
@@ -904,6 +904,8 @@ tab-complete UUIDs rather than having to type them out for every command.
         create: yes
         update: yes (special, see description in 'update' section above)
         default: zones
+
+        NOTE: SDC does not support any pool name other than the default 'zones'.
 
     disk_driver:
 
@@ -1847,9 +1849,10 @@ tab-complete UUIDs rather than having to type them out for every command.
     type:
 
         This is a virtual field and cannot be updated. It will be 'OS' when the
-        (brand == 'joyent*' || brand == 'sngl') and 'KVM' when the brand=='kvm'.
+        brand == 'joyent*', 'LX' when the brand == 'lx', and 'KVM' when the
+        brand == 'kvm'.
 
-        type: string value, one of: ['OS', 'KVM']
+        type: string value, one of: ['OS', 'LX', 'KVM']
         vmtype: OS,KVM
         listable: yes
         create: no, set by 'brand' property.
@@ -2069,6 +2072,52 @@ tab-complete UUIDs rather than having to type them out for every command.
 
         See zfs(1M) `snapshot_limit` for more details.
 
+    zlog_max_size:
+
+        This property is used to set/show the maximum size for a docker zone's
+        stdio.log file before zoneadmd(1m) will rotate it.
+
+        NOTE: this property only exists for use by sdc-docker and should not be
+        relied on for other things at this point.
+
+        type: integer (size in bytes)
+        vmtype: OS,LX
+        listable: no
+        create: yes
+        update: yes
+        default: none (no rotation)
+
+    zlog_mode:
+
+        This property will show up for docker zones and indicates which mode the
+        zlog/zfd devices will be in for the VM.
+
+        The values are simply positional letters used to indicate various
+        capabilities. The following table shows the meaning of the mode values:
+
+        zlog-mode    gz log - tty - ngz log
+        ---------    ------   ---   -------
+        gt-             y      y       n
+        g--             y      n       n
+        gtn             y      y       y
+        g-n             y      n       y
+        -t-             n      y       n
+        ---             n      n       n
+
+        where the "gz log" here means we'll write the log to the
+        /zones/<uuid>/logs/stdio.log file, "tty" means we'll setup the zfd
+        devices as a tty, and "ngz log" means we'll setup the zfd devices to
+        loop logs back into the zone so that a dockerlogger can process them in
+        the zone.
+
+        NOTE: currently this should only ever appear for "docker" VMs.
+
+        type: string (3 character mode string)
+        vmtype: OS,LX
+        listable: no
+        create: no (handled via docker:* metadata)
+        update: no (handled via docker:* metadata)
+
     zone_state:
 
         This property will show up when fetching a VMs JSON.  this shows the
@@ -2134,6 +2183,8 @@ tab-complete UUIDs rather than having to type them out for every command.
         create: yes
         update: no
         default: zones
+
+        NOTE: SDC does not support any pool name other than the default 'zones'.
 
 
 ## VM STATES
