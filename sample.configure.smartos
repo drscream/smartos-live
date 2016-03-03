@@ -16,7 +16,7 @@ illumos-live: master
 illumos-extra: skylime
 illumos-joyent: skylime
 ur-agent: master
-kvm: master
+kvm: skylime
 kvm-cmd: master
 mdata-client: master
 EOF
