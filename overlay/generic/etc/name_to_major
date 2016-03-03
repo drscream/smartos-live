@@ -279,7 +279,6 @@ upf 281
 urf 282
 vnd 283
 lx_ptm 284
-lx_audio 285
 lx_systrace 286
 nfp 287
 inotify 288
@@ -289,4 +288,5 @@ zfd 291
 timerfd 292
 signalfd 293
 nvme 294
-arn 295
+lxautofs 295
+arn 296
