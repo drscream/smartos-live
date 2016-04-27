@@ -289,4 +289,5 @@ timerfd 292
 signalfd 293
 nvme 294
 lxautofs 295
-arn 296
+i40e 296
+arn 297
