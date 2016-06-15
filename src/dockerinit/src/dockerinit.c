@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (c) 2015, Joyent, Inc.
+ * Copyright (c) 2016, Joyent, Inc.
  */
 
 /*
@@ -77,10 +77,12 @@
 #define DOCKER_LOGGER "/lib/sdc/docker/logger"
 #define IPMGMTD "/lib/inet/ipmgmtd"
 #define IPMGMTD_DOOR "/etc/svc/volatile/ipadm/ipmgmt_door"
+#define NFS_MOUNT "/usr/lib/fs/nfs/mount"
 
 #define LOGFILE "/var/log/sdc-dockerinit.log"
 #define RTMBUFSZ sizeof (struct rt_msghdr) + (3 * sizeof (struct sockaddr_in))
 #define ATTACH_CHECK_INTERVAL 200000 // 200ms
+#define ZFD_OPEN_RETRIES 300 /* retries to open a zfd device (10 / second) */
 
 int addRoute(const char *, const char *, const char *, int);
 void closeIpadmHandle();
@@ -88,6 +90,7 @@ static void execCmdline(strlist_t *, strlist_t *, const char *);
 static brand_t getBrand(void);
 static boolean_t getStdinStatus(void);
 void killIpmgmtd(void);
+void mountLXDevShm();
 void mountOSDevFD();
 void openIpadmHandle();
 void plumbIf(const char *);
@@ -96,12 +99,17 @@ void runIpmgmtd(void);
 void setupHostname();
 void setupInterface(nvlist_t *data);
 void setupInterfaces();
+static void doNfsMount(const char *nfsvolume, const char *mountpoint,
+    boolean_t readonly);
+static void mountNfsVolume(nvlist_t *data);
+static void mountNfsVolumes();
 static void makeMux(int stdid, int logid, boolean_t use_flowcon);
 static void setupTerminal(boolean_t ctty);
 static void setupLogging(boolean_t ctty);
 void waitIfAttaching();
 void makePath(const char *, char *, size_t);
 static int init_template(int);
+static int zfd_open(const char *path, int oflag);
 
 /* global metadata client bits */
 int initialized_proto = 0;
@@ -221,6 +229,7 @@ zfd_ready()
     struct dirent *dp;
     boolean_t ready;
     struct timespec ts;
+    int loops = 0;
 
     ts.tv_sec = 0;
     ts.tv_nsec = 100000000;	/* 1/10 of a second */
@@ -242,10 +251,55 @@ zfd_ready()
         }
 
         if (ready) {
+            dlog("INFO zfd_ready() took %d loops\n", loops);
             break;
         }
+        loops++;
         (void) nanosleep(&ts, NULL);
     }
+}
+
+static int
+zfd_open(const char *path, int oflag)
+{
+    int fd;
+    struct timespec ts;
+
+    /*
+     * Sometimes devfs takes some time to create our devices. Even though we
+     * already check for *something* in the directory with zfd_ready, we also
+     * want to handle the case where a specific zfd device is not there yet.
+     * If we try to open and get ENOENT, we retry ZFD_OPEN_RETRIES times before
+     * failing.
+     */
+
+    ts.tv_sec = 0;
+    ts.tv_nsec = 100000000; /* 1/10 of a second */
+
+    for (int i = 0; i < ZFD_OPEN_RETRIES; i++) {
+        fd = open(path, oflag);
+        if (fd >= 0 || errno != ENOENT) {
+            if (fd >= 0) {
+                dlog("INFO open(%s) SUCCESS on attempt %d\n", path, i);
+            }
+            break;
+        }
+        if ((i + 1) < ZFD_OPEN_RETRIES) {
+            /*
+             * We're going to do another try after a delay. Since the retries
+             * happen every tenth of a second and there might be a lot of them
+             * especially if the container is looping, we'll just log the first
+             * retry and every 10th after that.
+             */
+            if ((i % 10) == 0) {
+                dlog("WARN open(%s) ENOENT on attempt %d, %s\n", path, i,
+                    (i == 0) ? "will retry" : "still retrying");
+            }
+            (void) nanosleep(&ts, NULL);
+        }
+    }
+
+    return (fd);
 }
 
 static void
@@ -265,7 +319,7 @@ makeMux(int stdid, int logid, boolean_t flow_control)
      */
     (void) snprintf(stdpath, sizeof (stdpath), "/dev/zfd/%d", stdid);
 
-    sfd = open(stdpath, O_RDWR | O_NOCTTY);
+    sfd = zfd_open(stdpath, O_RDWR | O_NOCTTY);
     if (sfd == -1) {
         fatal(ERR_OPEN_ZFD, "failed to open %s to link streams\n", stdpath);
     }
@@ -277,7 +331,7 @@ makeMux(int stdid, int logid, boolean_t flow_control)
     instance = minor(sb.st_rdev);
     (void) snprintf(stdpath, sizeof (stdpath), "/dev/zfd/%d", logid);
 
-    lfd = open(stdpath, O_RDWR | O_NOCTTY);
+    lfd = zfd_open(stdpath, O_RDWR | O_NOCTTY);
     if (lfd == -1) {
         fatal(ERR_OPEN_ZFD, "failed to open %s to link streams\n", stdpath);
     }
@@ -468,7 +522,7 @@ setupLogging(boolean_t ctty)
         // setup the zfd redirection
         if (ctty) {
             makeMux(0, 1, use_flowcon);
-            tmpfd = open("/dev/zfd/1", O_RDONLY);
+            tmpfd = zfd_open("/dev/zfd/1", O_RDONLY);
             if (tmpfd != 3) {
                 fatal(ERR_OPEN_CONSOLE, "failed to open /dev/zfd/1: %s\n",
                     strerror(errno));
@@ -481,12 +535,12 @@ setupLogging(boolean_t ctty)
         } else {
             makeMux(1, 3, use_flowcon);
             makeMux(2, 4, use_flowcon);
-            tmpfd = open("/dev/zfd/3", O_RDONLY);
+            tmpfd = zfd_open("/dev/zfd/3", O_RDONLY);
             if (tmpfd != 3) {
                 fatal(ERR_OPEN_CONSOLE, "failed to open /dev/zfd/3: %s\n",
                     strerror(errno));
             }
-            tmpfd = open("/dev/zfd/4", O_RDONLY);
+            tmpfd = zfd_open("/dev/zfd/4", O_RDONLY);
             if (tmpfd != 4) {
                 fatal(ERR_OPEN_CONSOLE, "failed to open /dev/zfd/4: %s\n",
                     strerror(errno));
@@ -536,6 +590,15 @@ setupLogging(boolean_t ctty)
 }
 
 static void
+assertFd(int actual, int expected)
+{
+    if (actual != expected) {
+        fatal(ERR_UNEXPECTED, "expected fd %d, got %d\n", expected, actual);
+        /* NOTREACHED */
+    }
+}
+
+static void
 setupTerminal(boolean_t ctty)
 {
     int _stdin, _stdout, _stderr;
@@ -552,19 +615,12 @@ setupTerminal(boolean_t ctty)
             fatal(ERR_CLOSE, "failed to close(0): %s\n", strerror(errno));
         }
 
-        _stdin = open("/dev/zfd/0", O_RDWR);
+        _stdin = zfd_open("/dev/zfd/0", O_RDWR);
         if (_stdin == -1) {
-            if (errno == ENOENT) {
-                _stdin = open("/dev/null", O_RDONLY);
-                if (_stdin == -1) {
-                    fatal(ERR_OPEN_CONSOLE, "failed to open /dev/null: %s\n",
-                        strerror(errno));
-                }
-            } else {
-                fatal(ERR_OPEN_CONSOLE, "failed to open /dev/zfd/0: %s\n",
-                    strerror(errno));
-            }
+            fatal(ERR_OPEN_CONSOLE, "failed to open /dev/zfd/0: %s\n",
+                strerror(errno));
         }
+        assertFd(_stdin, STDIN_FILENO);
     }
 
     if (close(1) == -1) {
@@ -576,16 +632,18 @@ setupTerminal(boolean_t ctty)
 
     if (ctty) {
         /* Configure output as a controlling terminal */
-        _stdout = open("/dev/zfd/0", O_WRONLY);
+        _stdout = zfd_open("/dev/zfd/0", O_WRONLY);
         if (_stdout == -1) {
             fatal(ERR_OPEN_CONSOLE, "failed to open /dev/zfd/0: %s\n",
                 strerror(errno));
         }
-        _stderr = open("/dev/zfd/0", O_WRONLY);
+        assertFd(_stdout, STDOUT_FILENO);
+        _stderr = zfd_open("/dev/zfd/0", O_WRONLY);
         if (_stderr == -1) {
             fatal(ERR_OPEN_CONSOLE, "failed to open /dev/zfd/0: %s\n",
                 strerror(errno));
         }
+        assertFd(_stderr, STDERR_FILENO);
 
         if (setsid() < 0) {
             fatal(ERR_OPEN_CONSOLE, "failed to create process session: %s\n",
@@ -598,16 +656,18 @@ setupTerminal(boolean_t ctty)
 
     } else {
         /* Configure individual pipe style output */
-        _stdout = open("/dev/zfd/1", O_WRONLY);
+        _stdout = zfd_open("/dev/zfd/1", O_WRONLY);
         if (_stdout == -1) {
             fatal(ERR_OPEN_CONSOLE, "failed to open /dev/zfd/1: %s\n",
                 strerror(errno));
         }
-        _stderr = open("/dev/zfd/2", O_WRONLY);
+        assertFd(_stdout, STDOUT_FILENO);
+        _stderr = zfd_open("/dev/zfd/2", O_WRONLY);
         if (_stderr == -1) {
             fatal(ERR_OPEN_CONSOLE, "failed to open /dev/zfd/2: %s\n",
                 strerror(errno));
         }
+        assertFd(_stderr, STDERR_FILENO);
     }
 }
 
@@ -720,6 +780,17 @@ mountOSDevFD()
 
     if (mount("fd", "/dev/fd", MS_DATA, "fd", NULL, 0) != 0) {
         fatal(ERR_MOUNT_DEVFD, "failed to mount /dev/fd: %s\n",
+            strerror(errno));
+    }
+}
+
+void
+mountLXDevShm()
+{
+    dlog("MOUNT /dev/shm (shm)\n");
+
+    if (mount("shm", "/dev/shm", MS_DATA, "tmpfs", NULL, 0) != 0) {
+        fatal(ERR_MOUNT_DEVSHM, "failed to mount /dev/shm: %s\n",
             strerror(errno));
     }
 }
@@ -1170,6 +1241,133 @@ setupNetworking()
     closeIpadmHandle();
 }
 
+static void
+doNfsMount(const char *nfsvolume, const char *mountpoint, boolean_t readonly)
+{
+    pid_t pid;
+    int status;
+    int ret;
+    int tmplfd;
+
+    dlog("INFO mounting %s on %s\n", nfsvolume, mountpoint);
+
+    /* ensure the directory exists */
+    ret = mkdir(mountpoint, 0755);
+    if (ret == -1 && errno != EEXIST) {
+        fatal(ERR_MKDIR, "failed to mkdir(%s): (%d) %s\n", mountpoint,
+            errno, strerror(errno));
+    }
+
+    /* do the mount */
+
+    tmplfd = init_template(0);
+
+    if ((pid = fork()) == -1) {
+        fatal(ERR_FORK_FAILED, "fork() failed: %s\n", strerror(errno));
+    }
+
+    if (pid == 0) {
+        /* child */
+        char cmd[MAXPATHLEN];
+        char *const argv[] = {
+            "mount",
+            "-o",
+            (readonly == B_TRUE) ? "vers=3,sec=sys,ro" : "vers=3,sec=sys",
+            (char *)nfsvolume,
+            (char *)mountpoint,
+            NULL
+        };
+
+        (void) ct_tmpl_clear(tmplfd);
+        (void) close(tmplfd);
+
+        makePath(NFS_MOUNT, cmd, sizeof (cmd));
+
+        execv(cmd, argv);
+        fatal(ERR_EXEC_FAILED, "execv(%s) failed: %s\n", cmd, strerror(errno));
+    }
+
+    /* parent */
+    (void) ct_tmpl_clear(tmplfd);
+    (void) close(tmplfd);
+
+    dlog("INFO started mount[%d]\n", (int)pid);
+
+    while (wait(&status) != pid) {
+        /* EMPTY */;
+    }
+
+    if (WIFEXITED(status)) {
+        dlog("INFO mount[%d] exited: %d\n", (int)pid, WEXITSTATUS(status));
+        if (WEXITSTATUS(status) != 0) {
+            fatal(ERR_MOUNT_NFS_VOLUME, "mount[%d] exited non-zero (%d)\n",
+                (int)pid, WEXITSTATUS(status));
+        }
+    } else if (WIFSIGNALED(status)) {
+        fatal(ERR_EXEC_FAILED, "mount[%d] died on signal: %d\n",
+            (int)pid, WTERMSIG(status));
+    } else {
+        fatal(ERR_EXEC_FAILED, "mount[%d] failed in unknown way\n",
+            (int)pid);
+    }
+}
+
+static void
+mountNfsVolume(nvlist_t *data)
+{
+    boolean_t readonly;
+    char *nfsvolume, *mountpoint;
+    int ret;
+
+    ret = nvlist_lookup_string(data, "nfsvolume", &nfsvolume);
+    if (ret == 0) {
+        ret = nvlist_lookup_string(data, "mountpoint", &mountpoint);
+        if (ret == 0) {
+            ret = nvlist_lookup_boolean_value(data, "readonly", &readonly);
+            if (ret != 0) {
+                readonly = B_FALSE;
+            }
+            doNfsMount(nfsvolume, mountpoint, readonly);
+            return;
+        }
+    }
+
+    fatal(ERR_INVALID_NFS_VOLUMES, "invalid nfsvolumes");
+}
+
+static void
+mountNfsVolumes()
+{
+    char *json;
+    nvlist_t *data, *nvl;
+    nvpair_t *pair;
+
+    if ((json = mdataGet("docker:nfsvolumes")) == NULL) {
+        dlog("No docker:nfsvolumes, nothing to mount\n");
+        return;
+    }
+
+    if (nvlist_parse_json(json, strlen(json), &nvl, NVJSON_FORCE_INTEGER,
+      NULL) != 0) {
+        fatal(ERR_PARSE_JSON, "failed to parse nvpair json"
+            " for docker:nfsvolumes: %s\n", strerror(errno));
+    }
+    free(json);
+
+    for (pair = nvlist_next_nvpair(nvl, NULL); pair != NULL;
+      pair = nvlist_next_nvpair(nvl, pair)) {
+        if (nvpair_type(pair) == DATA_TYPE_NVLIST) {
+            if (nvpair_value_nvlist(pair, &data) != 0) {
+                fatal(ERR_PARSE_JSON, "failed to parse nvpair json"
+                    " for NFS volume: %s\n", strerror(errno));
+            }
+            mountNfsVolume(data);
+        }
+    }
+
+    nvlist_free(nvl);
+}
+
 long long
 currentTimestamp()
 {
@@ -1289,6 +1487,7 @@ main(int __attribute__((unused)) argc, char __attribute__((unused)) *argv[])
 
     switch (getBrand()) {
         case BRAND_LX:
+            mountLXDevShm();
             setupMtab();
             break;
         case BRAND_JOYENT_MINIMAL:
@@ -1318,6 +1517,9 @@ main(int __attribute__((unused)) argc, char __attribute__((unused)) *argv[])
     killIpmgmtd();
 
     dlog("INFO network setup complete\n");
+
+    /* EXPERIMENTAL */
+    mountNfsVolumes();
 
     /* NOTE: all of these will call fatal() if there's a problem */
     setupHostname();
