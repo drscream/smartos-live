@@ -291,4 +291,8 @@ nvme 294
 lxautofs 295
 i40e 296
 sfxge 297
-arn 298
+pvscsi 298
+vmxnet3s 299
+smrt 300
+iwn 301
+arn 302
