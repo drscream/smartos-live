@@ -295,4 +295,5 @@ pvscsi 298
 vmxnet3s 299
 smrt 300
 iwn 301
-arn 302
+xhci 302
+arn 303
