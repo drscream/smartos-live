@@ -93,10 +93,6 @@ f usr/img/node_modules/docker-registry-client/node_modules/tough-cookie/lib/cook
 f usr/img/node_modules/docker-registry-client/node_modules/tough-cookie/lib/memstore.js 0444 root bin
 f usr/img/node_modules/docker-registry-client/node_modules/tough-cookie/lib/pubsuffix.js 0444 root bin
 f usr/img/node_modules/docker-registry-client/node_modules/tough-cookie/lib/store.js 0444 root bin
-d usr/img/node_modules/docker-registry-client/node_modules/tough-cookie/node_modules 0555 root bin
-d usr/img/node_modules/docker-registry-client/node_modules/tough-cookie/node_modules/punycode 0555 root bin
-f usr/img/node_modules/docker-registry-client/node_modules/tough-cookie/node_modules/punycode/package.json 0444 root bin
-f usr/img/node_modules/docker-registry-client/node_modules/tough-cookie/node_modules/punycode/punycode.js 0444 root bin
 f usr/img/node_modules/docker-registry-client/node_modules/tough-cookie/package.json 0444 root bin
 f usr/img/node_modules/docker-registry-client/package.json 0444 root bin
 d usr/img/node_modules/extsprintf 0555 root bin
